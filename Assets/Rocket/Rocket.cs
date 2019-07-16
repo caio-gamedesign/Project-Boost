@@ -21,9 +21,9 @@ public class Rocket : MonoBehaviour
     [SerializeField] ParticleSystem deathParticles;
     [SerializeField] ParticleSystem winParticles;
 
-    enum State { Alive, Dead, Transcending };
-    State state = State.Alive;
-    private float delay = 1.5f;
+    private bool isTransitioning = false;
+
+    private readonly float delay = 1.5f;
 
     void Start()
     {
@@ -32,9 +32,33 @@ public class Rocket : MonoBehaviour
         audioSource.volume = 1f;
     }
 
+    private void Update()
+    {
+        if(Debug.isDebugBuild) DebugKeys();
+    }
+
+    private void DebugKeys()
+    {
+        if (Input.GetKey(KeyCode.L))
+        {
+            LoadNextLevel();
+        }
+        else if (Input.GetKey(KeyCode.C))
+        {
+            Collider[] colliders = GetComponentsInChildren<Collider>();
+
+            Debug.Log(colliders.Length);
+
+            foreach (Collider collider in colliders)
+            {
+                collider.enabled = !collider.enabled;
+            }
+        }
+    }
+
     void FixedUpdate()
     {
-        if (state == State.Alive)
+        if (!isTransitioning)
         {
             Rotate();
             Thrust();
@@ -53,7 +77,7 @@ public class Rocket : MonoBehaviour
                 verticalSpeed *= .65f;
             }
 
-            rigidbody.AddRelativeForce(Vector3.up * verticalSpeed);
+            rigidbody.AddRelativeForce(Vector3.up * verticalSpeed * Time.deltaTime);
 
             if (!audioSource.isPlaying)
             {
@@ -62,28 +86,31 @@ public class Rocket : MonoBehaviour
 
             mainEngineParticles.Play();
         }
-        else if (audioSource.isPlaying)
+        else 
         {
-            audioSource.Stop();
-            mainEngineParticles.Stop();
+            if (audioSource.isPlaying)
+            {
+                audioSource.Stop();
+                mainEngineParticles.Stop();
+            }
         }
     }
 
     private void Rotate()
     {
-        rigidbody.freezeRotation = true;
-
         float rotationSpeed = rcsThrust * Time.deltaTime;
 
         isRotating = false;
 
         if (Input.GetKey(KeyCode.A))
         {
+            rigidbody.freezeRotation = true;
             transform.Rotate(Vector3.forward * rotationSpeed);
             isRotating = true;
         }
         else if (Input.GetKey(KeyCode.D))
         {
+            rigidbody.freezeRotation = true;
             transform.Rotate(Vector3.back * rotationSpeed);
             isRotating = true;
         }
@@ -93,14 +120,15 @@ public class Rocket : MonoBehaviour
 
     private void OnCollisionEnter(Collision collision)
     {
-        if (state != State.Alive) return;
+        if (isTransitioning) return;
+
         switch (collision.gameObject.tag)
         {
             case "Friendly":
 
                 break;
             case "Finish":
-                state = State.Transcending;
+                isTransitioning = true;
                 audioSource.volume = .3f;
                 audioSource.Stop();
                 audioSource.PlayOneShot(win);
@@ -111,7 +139,7 @@ public class Rocket : MonoBehaviour
                 rigidbody.constraints = RigidbodyConstraints.FreezeAll;
                 break;
             default:
-                state = State.Dead;
+                isTransitioning = true;
                 audioSource.volume = .15f;
                 audioSource.Stop();
                 audioSource.PlayOneShot(death);
